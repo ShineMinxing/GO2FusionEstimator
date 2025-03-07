@@ -5,7 +5,6 @@ Email： 401435318@qq.com
 */
 #pragma once
 
-#include <rclcpp/rclcpp.hpp>
 #include <fstream>
 #include <memory>
 #include <iostream>
