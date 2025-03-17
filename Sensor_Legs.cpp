@@ -123,9 +123,9 @@ namespace DataFusion
 
     void SensorLegs::PositionCorrect(int LegNumber){
 
-        if(FootLanding[LegNumber]||!FootfallPositionRecordIsInitiated)
+        if(FootLanding[LegNumber]||(FootfallPositionRecordIsInitiated>=0&&FootfallPositionRecordIsInitiated<4))
         {
-            FootfallPositionRecordIsInitiated = 1;
+            FootfallPositionRecordIsInitiated += 1;
             FootLanding[LegNumber]= 0;
             FootfallPositionRecord[LegNumber][0] = StateSpaceModel->EstimatedState[0] + Observation[0];
             FootfallPositionRecord[LegNumber][1] = StateSpaceModel->EstimatedState[3] + Observation[3];
