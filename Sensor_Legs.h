@@ -24,7 +24,7 @@ namespace DataFusion
 
     Eigen::Matrix<double, 4, 13> KinematicParams;
     double Par_HipLength, Par_ThighLength, Par_CalfLength, Par_FootLength;
-    int FootfallPositionRecordIsInitiated = 0;
+    int FootfallPositionRecordIsInitiated[4] = {0};
 
     protected:
 
