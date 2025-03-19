@@ -114,7 +114,7 @@ namespace DataFusion
         else
             FootLanding[LegNumber] = false;
 
-        if(LatestFeetEffort>10&&LatestFeetEffort<FootEffortThreshold&&Observation[6]<0&&Observation[6]>-0.12) //趴着
+        if(LatestFeetEffort>10&&LatestFeetEffort<FootEffortThreshold&&Observation[6]<0&&Observation[6]>-0.12&&Observation[0]>-0.2) //趴着
             FootIsOnGround[LegNumber] = true;
 
         FootWasOnGround[LegNumber] = FootIsOnGround[LegNumber];
@@ -123,7 +123,7 @@ namespace DataFusion
 
     void SensorLegs::PositionCorrect(int LegNumber){
 
-        if(FootLanding[LegNumber]||FootfallPositionRecordIsInitiated[LegNumber])
+        if(FootLanding[LegNumber]||FootfallPositionRecordIsInitiated[LegNumber]==0)
         {
             FootfallPositionRecordIsInitiated[LegNumber] = 1;
             FootLanding[LegNumber]= 0;
