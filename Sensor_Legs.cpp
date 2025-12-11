@@ -135,8 +135,7 @@ namespace DataFusion
             FootfallPositionRecord[LegNumber][1] = StateSpaceModel->EstimatedState[3] + Observation[3];
             FootfallPositionRecord[LegNumber][2] = StateSpaceModel->EstimatedState[6] + Observation[6];
 
-            static double MapHeightStore[3][100] = {0};   
-            double Scope = 0.2, DataAvailablePeriod = 60;
+            static double MapHeightStore[3][999] = {0};   
             int i = 0;
             double distance = 0, Zdifference = 0, Temp[4] = {0,0,0,0};
             double AngleA = atan(abs(Observation[3]) / abs(Observation[0]));
@@ -144,9 +143,9 @@ namespace DataFusion
             distance = std::sqrt(std::pow(Observation[0],2) + std::pow(Observation[3],2) + std::pow(Observation[6],2));
         
             // Discard too old record
-            for(i = 0; i < 100; i++)
+            for(i = 0; i < 999; i++)
             {
-              if(MapHeightStore[2][i] != 0 && abs(ObservationTime-MapHeightStore[2][i]) > DataAvailablePeriod)
+              if(MapHeightStore[2][i] != 0 && abs(ObservationTime-MapHeightStore[2][i]) > Data_Fading_Time)
               {
                 MapHeightStore[0][i] = 0;
                 MapHeightStore[1][i] = 0;
@@ -157,19 +156,19 @@ namespace DataFusion
         
             Zdifference = 0;
             // MapHeightStore and claculate z difference
-            if(FootfallPositionRecord[LegNumber][2] <= Scope){
+            if(FootfallPositionRecord[LegNumber][2] <= Environement_Height_Scope){
 
               Zdifference = FootfallPositionRecord[LegNumber][2];
             }
             else{
 
-                for(i = 0; i < 100; i++){
+                for(i = 0; i < 999; i++){
 
-                    if(abs(MapHeightStore[0][i] - FootfallPositionRecord[LegNumber][2]) <= Scope)
+                    if(abs(MapHeightStore[0][i] - FootfallPositionRecord[LegNumber][2]) <= Environement_Height_Scope)
                     {
                         std::cout <<"Recorded: " << MapHeightStore[0][i];
                         std::cout <<", input: " << FootfallPositionRecord[LegNumber][2] <<" after " << ObservationTime - MapHeightStore[2][i];
-                        MapHeightStore[1][i] *= exp(- (ObservationTime - MapHeightStore[2][i]) / (10 * DataAvailablePeriod)); //Confidence fading
+                        MapHeightStore[1][i] *= exp(- (ObservationTime - MapHeightStore[2][i]) / (10 * Data_Fading_Time)); //Confidence fading
                         // MapHeightStore[0][i] = (MapHeightStore[0][i] * MapHeightStore[1][i] + FootfallPositionRecord[LegNumber][2]) / (MapHeightStore[1][i] + 1);
                         MapHeightStore[1][i] += 1;
                         MapHeightStore[2][i] = ObservationTime;
@@ -180,7 +179,7 @@ namespace DataFusion
                 }
                 if(Zdifference == 0){
 
-                    for(i = 0; i < 100; i++)
+                    for(i = 0; i < 999; i++)
                     {
                         if(MapHeightStore[2][i] == 0)
                         {
