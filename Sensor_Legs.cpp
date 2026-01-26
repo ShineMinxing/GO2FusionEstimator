@@ -4,96 +4,88 @@ namespace DataFusion
 {
     void SensorLegsPos::SensorDataHandle(double* Message, double Time) 
     {
+        if((!JointsXYZEnable)&&(!JointsXYZVelocityEnable)){
+            return;
+        }
+
+        int i, LegNumber;
         ObservationTime = Time;
+        
+        for(int i = 0; i < StateSpaceModel->Nz; i++)
+            Observation[i] = 0;
 
-        for(int LegNumber = 0; LegNumber<4; LegNumber++)
+        for(LegNumber = 0; LegNumber<4; LegNumber++)
         {
+            LatestFeetEffort[LegNumber] = 0;
 
-            for(int i = 0; i < 3; i++)
+            for(i = 0; i < 3; i++)
             {
-                Observation[3*i] = Message[LegNumber*3+i];
-                Observation[3*i+1] = Message[12+LegNumber*3+i];
+                SensorPosition[i] = KinematicParams[LegNumber][i];
             }
-            for(int i = 0; i < 3; i++)
-            {
-                SensorPosition[i] = KinematicParams(LegNumber, i) ;
-            }
-            LatestFeetEffort = Message[24 + LegNumber];
             
-            //Obtain foot hip relative position and velocity
-            Joint2HipFoot(LegNumber);
-
-            for(int i = 0; i < 3; i++)
-            {
-                StateSpaceModel->Double_Par[6 * LegNumber + i] = Observation[3 * i];
-                StateSpaceModel->Double_Par[6 * LegNumber + 3 + i] = Observation[3 * i + 1];
-            }
-
-            ObservationCorrect_Position();
-            ObservationCorrect_Velocity();
-
-            for(int i = 0; i < 3; i++)
-            {
-                StateSpaceModel->Double_Par[24 + 6 * LegNumber + i] = Observation[3 * i];
-                StateSpaceModel->Double_Par[24 + 6 * LegNumber + 3 + i] = Observation[3 * i + 1];
-            }
-
-            for(int i = 0; i < StateSpaceModel->Nx * StateSpaceModel->Nz; i++)
-            {
-                StateSpaceModel->Matrix_H[i] = 0;
-            }
-            for(int i = 0; i < 3; i++)
-            {
-                StateSpaceModel->Matrix_H[(3 * i + 0) * StateSpaceModel->Nx + (3 * i + 0)] = 1;
-                StateSpaceModel->Matrix_H[(3 * i + 1) * StateSpaceModel->Nx + (3 * i + 1)] = 1;
-            }
+            Joint2HipFoot(Message,LegNumber);
 
             if(FootIsOnGround[LegNumber])
             {
-                PositionCorrect(LegNumber);
-                StateSpaceModel_Go2_EstimatorPort(Observation, ObservationTime, StateSpaceModel);
-
-                for(int i = 0; i < 3; i++){
-                    StateSpaceModel->Double_Par[48 + 6 * LegNumber + i] = Observation[3 * i];
-                    StateSpaceModel->Double_Par[48 + 6 * LegNumber + 3 + i] = Observation[3 * i + 1];
+                for(i = 0; i < 9; i++)
+                {
+                    StateSpaceModel->Matrix_H[i * StateSpaceModel->Nx + i] = 0;
                 }
+                if(JointsXYZEnable){
+                    ObservationCorrect_Position();
+                    
+                    for(i = 0; i < 3; i++)
+                        StateSpaceModel->Matrix_H[(3 * i + 0) * StateSpaceModel->Nx + (3 * i + 0)] = 1;
+
+                    PositionCorrect(LegNumber);
+                }
+
+                if(JointsXYZVelocityEnable){
+                    ObservationCorrect_Velocity();
+
+                    for(i = 0; i < 3; i++)
+                        StateSpaceModel->Matrix_H[(3 * i + 1) * StateSpaceModel->Nx + (3 * i + 1)] = 1;
+                }
+                
+                StateSpaceModel_Go2_EstimatorPort(Observation, ObservationTime, StateSpaceModel);
             }
         }
     }
 
-    void SensorLegsPos::Joint2HipFoot(int LegNumber)
+    void SensorLegsPos::Joint2HipFoot(double *Message, int LegNumber)
     {
         double s1, s2, s3, c1, c2, c3, c23, s23, dq1, dq2, dq3;
-        int SideSign;
+        int SideSign, i;
 
         if (LegNumber == 0 || LegNumber == 2)
-            SideSign = -1;
-        else
             SideSign = 1;
+        else
+            SideSign = -1;
 
-        s1 = sin(Observation[0]);
-        s2 = sin(Observation[3]);
-        s3 = sin(Observation[6]);
-        c1 = cos(Observation[0]);
-        c2 = cos(Observation[3]);
-        c3 = cos(Observation[6]);
-        dq1 = Observation[1];
-        dq2 = Observation[4];
-        dq3 = Observation[7];
+        s1 = sin(Message[LegNumber*3+0]);
+        s2 = sin(Message[LegNumber*3+1]);
+        s3 = sin(Message[LegNumber*3+2]);
+        c1 = cos(Message[LegNumber*3+0]);
+        c2 = cos(Message[LegNumber*3+1]);
+        c3 = cos(Message[LegNumber*3+2]);
+        dq1 = Message[12 + LegNumber*3+0];
+        dq2 = Message[12 + LegNumber*3+1];
+        dq3 = Message[12 + LegNumber*3+2];
+
         c23 = c2 * c3 - s2 * s3;
         s23 = s2 * c3 + c2 * s3;
 
-        Observation[0] = (Par_CalfLength + Par_FootLength)  * s23 + Par_ThighLength * s2;
-        Observation[3] = Par_HipLength * SideSign * c1 + (Par_CalfLength + Par_FootLength) * (s1 * c23) + Par_ThighLength * c2 * s1;
-        Observation[6] = Par_HipLength * SideSign * s1 - (Par_CalfLength + Par_FootLength) * (c1 * c23) - Par_ThighLength * c1 * c2;
+        Observation[0] = Par_CalfLength  * s23 + Par_ThighLength * s2;
+        Observation[3] = Par_HipLength * SideSign * c1 + Par_CalfLength * (s1 * c23) + Par_ThighLength * c2 * s1;
+        Observation[6] = Par_HipLength * SideSign * s1 - Par_CalfLength * (c1 * c23) - Par_ThighLength * c1 * c2;
 
-        Observation[1] = ((Par_CalfLength + Par_FootLength) *c23 + Par_ThighLength * c2)*dq2 + ((Par_CalfLength + Par_FootLength) *c23)*dq3;
-        Observation[4] = ((Par_CalfLength + Par_FootLength) *c1*c23 + Par_ThighLength * c1*c2 - Par_HipLength*SideSign*s1)*dq1\
-        + (-(Par_CalfLength + Par_FootLength)  * s1*s23 - Par_ThighLength * s1*s2)*dq2\
-        + (-(Par_CalfLength + Par_FootLength)  * s1*s23)*dq3;
-        Observation[7] = ((Par_CalfLength + Par_FootLength) *s1*c23 + Par_ThighLength * c2*s1 + Par_HipLength*SideSign*c1)*dq1\
-        + ((Par_CalfLength + Par_FootLength) *c1*s23 + Par_ThighLength * c1*s2)*dq2\
-        + ((Par_CalfLength + Par_FootLength) *c1*s23)*dq3;
+        Observation[1] = (Par_CalfLength *c23 + Par_ThighLength * c2)*dq2 + (Par_CalfLength *c23)*dq3;
+        Observation[4] = (Par_CalfLength *c1*c23 + Par_ThighLength * c1*c2 - Par_HipLength*SideSign*s1)*dq1\
+        + (-Par_CalfLength  * s1*s23 - Par_ThighLength * s1*s2)*dq2\
+        + (-Par_CalfLength  * s1*s23)*dq3;
+        Observation[7] = (Par_CalfLength *s1*c23 + Par_ThighLength * c2*s1 + Par_HipLength*SideSign*c1)*dq1\
+        + (Par_CalfLength *c1*s23 + Par_ThighLength * c1*s2)*dq2\
+        + (Par_CalfLength *c1*s23)*dq3;
 
         Observation[0] = -Observation[0];
         Observation[1] = -Observation[1];
@@ -102,8 +94,49 @@ namespace DataFusion
         FootBodyPosition[LegNumber][1] = Observation[3] + SensorPosition[1];
         FootBodyPosition[LegNumber][2] = Observation[6] + SensorPosition[2];
 
-        //Detect the moment of foot falling on the ground
-        if(LatestFeetEffort >= FootEffortThreshold)
+
+        double tau_hip   = Message[24 + LegNumber * 3 + 0];
+        double tau_thigh = Message[24 + LegNumber * 3 + 1];
+        double tau_knee  = Message[24 + LegNumber * 3 + 2];
+
+        double J[3][3];
+
+        double Jx1_raw = 0.0;
+        double Jx2_raw = Par_CalfLength * c23 + Par_ThighLength * c2;
+        double Jx3_raw = Par_CalfLength * c23;
+
+        double Jy1 = Par_CalfLength * c1 * c23 + Par_ThighLength * c1 * c2 - Par_HipLength * SideSign * s1;
+        double Jy2 = -Par_CalfLength * s1 * s23 - Par_ThighLength * s1 * s2;
+        double Jy3 = -Par_CalfLength * s1 * s23;
+
+        double Jz1 = Par_CalfLength * s1 * c23 + Par_ThighLength * c2 * s1 + Par_HipLength * SideSign * c1;
+        double Jz2 = Par_CalfLength * c1 * s23 + Par_ThighLength * c1 * s2;
+        double Jz3 = Par_CalfLength * c1 * s23;
+
+        J[0][0] = -Jx1_raw;
+        J[0][1] = -Jx2_raw;
+        J[0][2] = -Jx3_raw;
+
+        J[1][0] =  Jy1;  J[1][1] =  Jy2;  J[1][2] =  Jy3;
+        J[2][0] =  Jz1;  J[2][1] =  Jz2;  J[2][2] =  Jz3;
+
+
+        const double tau[3] = { tau_hip, tau_thigh, tau_knee };
+        // w = J * tau
+        double w[3];
+        mat3_mul_vec(J, tau, w);
+        // M = J * J^T
+        double M[3][3];
+        mat3_mul_mat3T(J, M);
+        // f = inv(M) * w
+        double Minv[3][3];
+        double f[3] = {0,0,0};
+        if (mat3_inv(M, Minv)) {
+            mat3_mul_vec(Minv, w, f);
+            LatestFeetEffort[LegNumber] = f[2];
+        }
+
+        if(LatestFeetEffort[LegNumber] <= FootEffortThreshold)
         {
             FootIsOnGround[LegNumber] = true;
         }
@@ -111,87 +144,152 @@ namespace DataFusion
         {
             FootIsOnGround[LegNumber] = false;
         }
+
         if(FootIsOnGround[LegNumber] && !FootWasOnGround[LegNumber])
         {
+            // std::cout << "[Check] L" << LegNumber
+            //     << " t=" << ObservationTime
+            //     << " LatestFeetEffort[LegNumber]=" << LatestFeetEffort[LegNumber]
+            //     << " FootEffortThreshold=" << FootEffortThreshold
+            //     << " LastStatus=" << FootWasOnGround[LegNumber]
+            //     << " LastMotion=" << FootLastMotion[LegNumber]
+            //     << std::endl;
             FootLanding[LegNumber] = true;
+            FootLastMotion[LegNumber] = true;
         }
         else
             FootLanding[LegNumber] = false;
+        
+        if(!FootIsOnGround[LegNumber] && FootWasOnGround[LegNumber])
+        {
+            FootLastMotion[LegNumber] = false;
+        }
 
-        if(LatestFeetEffort>10&&LatestFeetEffort<FootEffortThreshold&&Observation[6]<0&&Observation[6]>-0.12&&Observation[0]>-0.2) //趴着
+        if(LegNumber==3&&!FootIsOnGround[0]&&!FootIsOnGround[1]&&!FootIsOnGround[2]&&Observation[6]>-0.1)
             FootIsOnGround[LegNumber] = true;
 
         FootWasOnGround[LegNumber] = FootIsOnGround[LegNumber];
-
     }
 
     void SensorLegsPos::PositionCorrect(int LegNumber){
 
-        if(FootLanding[LegNumber]||FootfallPositionRecordIsInitiated[LegNumber]==0)
+        if(!FootfallPositionRecordIsInitiated[LegNumber])
         {
-            FootfallPositionRecordIsInitiated[LegNumber] = 1;
-            FootLanding[LegNumber]= 0;
+            FootfallPositionRecordIsInitiated[LegNumber] = true;
+            FootLanding[LegNumber]= false;
+            FootfallPositionRecord[LegNumber][0] = StateSpaceModel->EstimatedState[0] + Observation[0];
+            FootfallPositionRecord[LegNumber][1] = StateSpaceModel->EstimatedState[3] + Observation[3];
+            FootfallPositionRecord[LegNumber][2] = 0;
+        }
+        else if(FootLanding[LegNumber])
+        {
+            FootLanding[LegNumber]= false;
             FootfallPositionRecord[LegNumber][0] = StateSpaceModel->EstimatedState[0] + Observation[0];
             FootfallPositionRecord[LegNumber][1] = StateSpaceModel->EstimatedState[3] + Observation[3];
             FootfallPositionRecord[LegNumber][2] = StateSpaceModel->EstimatedState[6] + Observation[6];
 
-            static double MapHeightStore[3][999] = {0};   
+            static double MapHeightStore[3][1000] = {0};
+            static int MapHeightStoreMax = 0;
             int i = 0;
-            double distance = 0, Zdifference = 0, Temp[4] = {0,0,0,0};
-            double AngleA = atan(abs(Observation[3]) / abs(Observation[0]));
+            double distance = 0, Zdifference = 99, Temp[4] = {0,0,0,0};
+            double AngleA = atan(std::abs(Observation[3]) / std::abs(Observation[0]));
+
+            
+            // std::cout << "[LAND] L" << LegNumber
+            //     << " t=" << ObservationTime
+            //     << " z_in=" << (StateSpaceModel->EstimatedState[6] + Observation[6])
+            //     << " scope=" << Environement_Height_Scope
+            //     << " fade=" << Data_Fading_Time
+            //     << " max=" << MapHeightStoreMax
+            //     << std::endl;
         
-            distance = std::sqrt(std::pow(Observation[0],2) + std::pow(Observation[3],2) + std::pow(Observation[6],2));
+            distance = std::sqrt(Observation[0]*Observation[0] + Observation[3]*Observation[3] + Observation[6]*Observation[6]);
         
-            // Discard too old record
-            for(i = 0; i < 999; i++)
+            for(i = 0; i < (MapHeightStoreMax+1); i++)
             {
-              if(MapHeightStore[2][i] != 0 && abs(ObservationTime-MapHeightStore[2][i]) > Data_Fading_Time)
-              {
-                MapHeightStore[0][i] = 0;
-                MapHeightStore[1][i] = 0;
-                MapHeightStore[2][i] = 0;
-                std::cout <<"One old step cleared" << std::endl;
+                if(MapHeightStore[2][i] != 0 && std::abs(ObservationTime-MapHeightStore[2][i]) > Data_Fading_Time)
+                {
+                    MapHeightStore[0][i] = 0;
+                    MapHeightStore[1][i] = 0;
+                    MapHeightStore[2][i] = 0;
+                    // std::cout <<"One old step cleared" << std::endl;
               }
             }
-        
-            Zdifference = 0;
-            // MapHeightStore and claculate z difference
-            if(FootfallPositionRecord[LegNumber][2] <= Environement_Height_Scope){
 
-              Zdifference = FootfallPositionRecord[LegNumber][2];
-            }
-            else{
+            for(i = 0; i < (MapHeightStoreMax+1); i++){
 
-                for(i = 0; i < 999; i++){
+                if(std::abs(MapHeightStore[0][i] - FootfallPositionRecord[LegNumber][2]) <= Environement_Height_Scope)
+                {
+                    
+                    // std::cout << "[HIT] i=" << i
+                    //         << " rec=" << MapHeightStore[0][i]
+                    //         << " in="  << FootfallPositionRecord[LegNumber][2]
+                    //         << " dz="  << std::abs(MapHeightStore[0][i] - FootfallPositionRecord[LegNumber][2])
+                    //         << " conf->" << MapHeightStore[1][i]
+                    //         << std::endl;
 
-                    if(abs(MapHeightStore[0][i] - FootfallPositionRecord[LegNumber][2]) <= Environement_Height_Scope)
-                    {
-                        std::cout <<"Recorded: " << MapHeightStore[0][i];
-                        std::cout <<", input: " << FootfallPositionRecord[LegNumber][2] <<" after " << ObservationTime - MapHeightStore[2][i];
-                        MapHeightStore[1][i] *= exp(- (ObservationTime - MapHeightStore[2][i]) / (10 * Data_Fading_Time)); //Confidence fading
-                        // MapHeightStore[0][i] = (MapHeightStore[0][i] * MapHeightStore[1][i] + FootfallPositionRecord[LegNumber][2]) / (MapHeightStore[1][i] + 1);
-                        MapHeightStore[1][i] += 1;
-                        MapHeightStore[2][i] = ObservationTime;
+                    MapHeightStore[1][i] *= exp(- (ObservationTime - MapHeightStore[2][i]) / (10 * Data_Fading_Time));
+                    MapHeightStore[1][i] += 1;
+                    MapHeightStore[2][i] = ObservationTime;
+                    if(std::abs(MapHeightStore[0][i] - FootfallPositionRecord[LegNumber][2]) <= Environement_Height_Scope/10)
+                        Zdifference = 0;
+                    else
                         Zdifference = FootfallPositionRecord[LegNumber][2] - MapHeightStore[0][i];
-                        std::cout <<", height correct to " << MapHeightStore[0][i] << " confidence is " << MapHeightStore[1][i] << std::endl;
+
+                    // std::cout << "[CORR] z_diff=" << Zdifference
+                    //     << " z_out=" << (FootfallPositionRecord[LegNumber][2] - Zdifference)
+                    //     << std::endl;
+                    break;
+                }
+            }
+            if(Zdifference == 99){
+                Zdifference = 0;
+                for(i = 0; i < (MapHeightStoreMax+1); i++)
+                {
+                    if(MapHeightStore[2][i] == 0)
+                    {
+                        MapHeightStore[0][i] = FootfallPositionRecord[LegNumber][2];
+                        MapHeightStore[1][i] = 1;
+                        MapHeightStore[2][i] = ObservationTime;
+                        // std::cout << "[NEW] i=" << i
+                        //     << " h=" << MapHeightStore[0][i]
+                        //     << " t=" << MapHeightStore[2][i]
+                        //     << " max=" << MapHeightStoreMax
+                        //     << std::endl;
+
                         break;
                     }
                 }
-                if(Zdifference == 0){
+                if(i >= 999)
+                {
+                    // std::cout << "[FULL] store full-ish, overwrite slot0"
+                    //     << " t=" << ObservationTime
+                    //     << " max=" << MapHeightStoreMax
+                    //     << std::endl;
 
-                    for(i = 0; i < 999; i++)
+                    for(i = 0; i < (MapHeightStoreMax+1); i++)
                     {
-                        if(MapHeightStore[2][i] == 0)
+                        if(MapHeightStore[2][i] != 0 && std::abs(ObservationTime-MapHeightStore[2][i]) > 60)
                         {
-                            MapHeightStore[0][i] = FootfallPositionRecord[LegNumber][2];
-                            MapHeightStore[1][i] = 1;
-                            MapHeightStore[2][i] = ObservationTime;
-                            std::cout <<"New height recorded: " << MapHeightStore[0][i] << std::endl;
-                            break;
+                            MapHeightStore[0][i] = 0;
+                            MapHeightStore[1][i] = 0;
+                            MapHeightStore[2][i] = 0;
                         }
                     }
-                }  
-            }
+                    i = 0;
+                    MapHeightStore[0][i] = FootfallPositionRecord[LegNumber][2];
+                    MapHeightStore[1][i] = 1;
+                    MapHeightStore[2][i] = ObservationTime;
+                }
+                if(i == MapHeightStoreMax + 1)
+                {
+                    MapHeightStoreMax = i;
+                    MapHeightStore[0][i] = FootfallPositionRecord[LegNumber][2];
+                    MapHeightStore[1][i] = 1;
+                    MapHeightStore[2][i] = ObservationTime;
+                }
+                
+            } 
             FootfallPositionRecord[LegNumber][2] = FootfallPositionRecord[LegNumber][2] - Zdifference;
         }
 
@@ -202,58 +300,48 @@ namespace DataFusion
 
    void SensorLegsOri::SensorDataHandle(double* Message, double Time) 
     {
-        // 1) 读取足在身体系/世界系的位置（由 SensorLegsPos 写入 Double_Par）
-        double P_body[4][3];   // 身体系足点位置
-        double P_world[4][3];  // 世界系足点位置
+        if(!JointsRPYEnable)
+            return;
+        
+        double P_body[4][3];
+        double P_world[4][3];
         static double TimeRecord = Time;
+        int LegNumber, i;
 
-        for (int leg = 0; leg < 4; ++leg) {
-            for (int i = 0; i < 3; i++){
-                P_body[leg][i] = legs_pos_ref_->FootBodyPosition[leg][i];
-                P_world[leg][i] = legs_pos_ref_->FootfallPositionRecord[leg][i];
+        for (LegNumber = 0; LegNumber < 4; ++LegNumber) {
+            for (i = 0; i < 3; i++){
+                P_body[LegNumber][i] = legs_pos_ref_->FootBodyPosition[LegNumber][i];
+                P_world[LegNumber][i] = legs_pos_ref_->FootfallPositionRecord[LegNumber][i];
             }
         }
 
-        // 2) 统计在地足（用固定数组，不用 <vector>）
         int n_ground = 0;
-        for (int leg = 0; leg < 4; leg++) {
-            if (legs_pos_ref_->FootIsOnGround[leg])
+        for (LegNumber = 0; LegNumber < 4; LegNumber++) {
+            if (legs_pos_ref_->FootIsOnGround[LegNumber])
                 n_ground++;
         }
 
-        // 不足两足在地：返回
         if (n_ground < 2) {
             return;
         }
         if (n_ground < 4){
             TimeRecord = Time;
-            StateSpaceModel->Double_Par[96] = StateSpaceModel->Double_Par[97];
+            legori_current_weight = legori_init_weight;
         }
         else{
-            StateSpaceModel->Double_Par[96] = (Time-TimeRecord) * (1.0 - StateSpaceModel->Double_Par[97]) / StateSpaceModel->Double_Par[98] + StateSpaceModel->Double_Par[97];
-            if(StateSpaceModel->Double_Par[96]>1.0)
-                StateSpaceModel->Double_Par[96] = 1.0;
+            legori_current_weight = (Time-TimeRecord) * (1.0 - legori_init_weight) /legori_time_weight + legori_init_weight;
+            if(legori_current_weight>1.0)
+                legori_current_weight = 1.0;
         }
 
-        // 3) 仅保留 roll/pitch（去掉 yaw），把身体系差向量旋到“去 yaw”的世界平面
         const double roll  = StateSpaceModel->EstimatedState[0];
         const double pitch = StateSpaceModel->EstimatedState[3];
-        const double yaw   = StateSpaceModel->EstimatedState[6];
 
-        Eigen::Quaterniond Rp =
-            Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
-            Eigen::AngleAxisd(roll , Eigen::Vector3d::UnitX());
+        double q_rp[4];
+        eulerZYX_to_quat(roll, pitch, 0.0, q_rp);
 
-        // 角度归一化
-        auto angle_wrap = [](double a) -> double {
-            while (a >  M_PI) a -= 2.0 * M_PI;
-            while (a < -M_PI) a += 2.0 * M_PI;
-            return a;
-        };
-
-        // 4) 基于两两配对估计 yaw（固定大小累加，圆统计）
-        double sx = 0.0, sy = 0.0; // 累加 cos/sin
-        for (int i = 0; i < 4; ++i) {
+        double sx = 0.0, sy = 0.0;
+        for (i = 0; i < 4; ++i) {
             if(!legs_pos_ref_->FootIsOnGround[i])
                 continue;
 
@@ -261,22 +349,20 @@ namespace DataFusion
                 if(!legs_pos_ref_->FootIsOnGround[j])
                     continue;
 
-                // 身体系差向量
                 double vb_x = P_body[j][0] - P_body[i][0];
                 double vb_y = P_body[j][1] - P_body[i][1];
                 double vb_z = P_body[j][2] - P_body[i][2];
 
-                // 用仅含 roll/pitch 的旋转（去 yaw）
-                Eigen::Vector3d v_body(vb_x, vb_y, vb_z);
-                Eigen::Vector3d v_rp = Rp * v_body;
+                double v_body[3] = { vb_x, vb_y, vb_z };
+                double v_rp[3];
+                quat_rot_vec3(q_rp, v_body, v_rp);
 
-                // 世界系真实差向量
+
                 double vw_x = P_world[j][0] - P_world[i][0];
                 double vw_y = P_world[j][1] - P_world[i][1];
                 double vw_z = P_world[j][2] - P_world[i][2];
 
-                // 平面方位角
-                const double ang_rp = std::atan2(v_rp.y(), v_rp.x());
+                const double ang_rp = std::atan2(v_rp[1], v_rp[0]);
                 const double ang_w  = std::atan2(vw_y,     vw_x);
 
                 const double yaw_ij = angle_wrap(ang_w - ang_rp);
@@ -288,16 +374,14 @@ namespace DataFusion
                     k--;
 
                 // printf("%d: ang_rp-%lf; ang_w-%lf; yaw_ij-%lf \n",k,ang_rp,ang_w,yaw_ij);
-
             }
         }
 
-        // 5) 与当前估计做指数平滑融合，避免跳变
         if (sx != 0.0 || sy != 0.0) {
             const double yaw_est = std::atan2(sy, sx);
             const double yaw_now = StateSpaceModel->EstimatedState[6];
             const double err     = angle_wrap(yaw_est - yaw_now);
-            StateSpaceModel->Double_Par[99] = angle_wrap(yaw_now + StateSpaceModel->Double_Par[96] * err);
+            legori_correct = angle_wrap(yaw_now + legori_current_weight * err);
             UpdateEst_Quaternion();
         }
     }
