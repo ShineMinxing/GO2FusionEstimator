@@ -10,9 +10,9 @@
         #include "fusion_estimator.h"
         auto Robot_Estimation = CreateRobot_Estimation();
     2. 外部调用状态估计示例：
-        #include "LowlevelState.h"
-        LowlevelState st{};
-        Odometer odom = Robot_Estimation.fusion_estimator(st);
+        #include "FE_LowlevelState.h"
+        FE_LowlevelState st{};
+        FE_Odometer odom = Robot_Estimation.fusion_estimator(st);
     3. 外部调用算法调参和读取反馈示例：
         double status[200] = {0};
         Robot_Estimation.fusion_estimator(status);
@@ -65,25 +65,6 @@
 #include "Sensor_Legs.h"
 #include "Sensor_IMU.h"
 
-enum ConfigIndex {
-
-    IndexInOrOut = 0,
-    IndexStatusOK = 1,
-    IndexIMUAccEnable = 2,  
-    IndexIMUQuaternionEnable = 3,
-    IndexIMUGyroEnable = 4,  
-    IndexJointsXYZEnable = 5,
-    IndexJointsVelocityXYZEnable = 6,
-    IndexJointsRPYEnable = 7,
-    
-    IndexLoadedWeight = 9,
-
-    IndexLegFootForceThreshold = 10,  
-    IndexLegMinStairHeight = 11,
-    IndexLegOrientationInitialWeight = 12, 
-    IndexLegOrientationTimeWeight = 13,
-};
-
 struct FE_Odometer
 {
     double t = 0.0;
@@ -115,6 +96,25 @@ struct FE_LowlevelState
     double motor_q[MOTOR_COUNT]   = {0};  // joint position
     double motor_dq[MOTOR_COUNT]  = {0};  // joint velocity
     double motor_tau[MOTOR_COUNT] = {0};  // estimated torque
+};
+
+enum ConfigIndex {
+
+    IndexInOrOut = 0,
+    IndexStatusOK = 1,
+    IndexIMUAccEnable = 2,  
+    IndexIMUQuaternionEnable = 3,
+    IndexIMUGyroEnable = 4,  
+    IndexJointsXYZEnable = 5,
+    IndexJointsVelocityXYZEnable = 6,
+    IndexJointsRPYEnable = 7,
+    
+    IndexLoadedWeight = 9,
+
+    IndexLegFootForceThreshold = 10,  
+    IndexLegMinStairHeight = 11,
+    IndexLegOrientationInitialWeight = 12, 
+    IndexLegOrientationTimeWeight = 13,
 };
 
 class FusionEstimatorCore
@@ -166,6 +166,8 @@ public:
             legs_pos->JointsXYZVelocityEnable   = status[IndexJointsVelocityXYZEnable];
             legs_ori->JointsRPYEnable           = status[IndexJointsRPYEnable];
 
+            legs_pos->LoadedWeight              = status[IndexLoadedWeight];
+
             legs_pos->FootEffortThreshold       = status[IndexLegFootForceThreshold];
             legs_pos->Environement_Height_Scope = status[IndexLegMinStairHeight];
             legs_ori->legori_init_weight        = status[IndexLegOrientationInitialWeight];
@@ -183,11 +185,24 @@ public:
             status[IndexJointsXYZEnable]          = legs_pos->JointsXYZEnable;
             status[IndexJointsVelocityXYZEnable]  = legs_pos->JointsXYZVelocityEnable;
             status[IndexJointsRPYEnable]          = legs_ori->JointsRPYEnable;
+                
+            status[IndexLoadedWeight]             = legs_pos->LoadedWeight;
 
             status[IndexLegFootForceThreshold]    = legs_pos->FootEffortThreshold;
             status[IndexLegMinStairHeight]        = legs_pos->Environement_Height_Scope;
             status[IndexLegOrientationInitialWeight] = legs_ori->legori_init_weight;
             status[IndexLegOrientationTimeWeight]    = legs_ori->legori_time_weight;
+
+            for(int i = 0; i < 9; i++){
+                status[50 + i] = sensors[0]->EstimatedState[i];
+            }
+            for(int i = 0; i < 9; i++){
+                status[60 + i] = sensors[1]->EstimatedState[i];
+            }
+            
+            for(int i = 0; i < 100; i++){
+                status[100 + i] = sensors[0]->Double_Par[i];
+            }
         }
         else if (status[IndexInOrOut] == 3){
             status[IndexInOrOut] = 0;
@@ -197,34 +212,38 @@ public:
             sensors[0]->EstimatedState[0] = 0;
             sensors[0]->EstimatedState[3] = 0;
             sensors[0]->EstimatedState[6] = 0;
-            yaw_correct = - sensors[1]->EstimatedState[6] + yaw_correct;
+            yaw_correct = - sensors[1]->EstimatedState[6];
             legs_pos->FootfallPositionRecordIsInitiated[0] = false;
             legs_pos->FootfallPositionRecordIsInitiated[1] = false;
             legs_pos->FootfallPositionRecordIsInitiated[2] = false;
             legs_pos->FootfallPositionRecordIsInitiated[3] = false;
         }
-        else{
+        else if (status[IndexInOrOut] == 4){
+            status[IndexInOrOut] = 0;
+            status[IndexStatusOK] = status[IndexStatusOK] + 40;
+            if (status[IndexStatusOK] > 999)
+                status[IndexStatusOK] = 1;
+            legs_pos->UseGo2P();
+
         }
     }
 
     FE_Odometer fusion_estimator(const FE_LowlevelState& st)
     {
+        FE_Odometer odom;
+
+        const double q[4] = {
+            static_cast<double>(st.imu_quat[0]),
+            static_cast<double>(st.imu_quat[1]),
+            static_cast<double>(st.imu_quat[2]),
+            static_cast<double>(st.imu_quat[3])
+        };
+
+        if(!DataFusion::quat_is_ok(q))
+            return odom;
+
         const double CurrentTimestamp = st.timestamp;
         static double LastUsedTimestamp = 0, StartTimeStamp = 0;
-
-        if(st.timestamp==0){
-            
-            FE_Odometer odom;
-            odom.pos[0] = 0;
-            odom.pos[1] = 0;
-            odom.pos[2] = 0;
-
-            odom.rpy[0] = 0;
-            odom.rpy[1] = 0;
-            odom.rpy[2] = 0;
-
-            return odom;
-        }
 
         if (!(CurrentTimestamp - StartTimeStamp - LastUsedTimestamp < 1) || !(CurrentTimestamp - StartTimeStamp - LastUsedTimestamp >0))
             StartTimeStamp = CurrentTimestamp - LastUsedTimestamp;
@@ -234,15 +253,14 @@ public:
 
         if (imu_acc->IMUAccEnable) {
             double msg_acc[9] = {0};
-            msg_acc[3*0 + 2] = st.imu_acc[0];
-            msg_acc[3*1 + 2] = st.imu_acc[1];
-            msg_acc[3*2 + 2] = st.imu_acc[2];
-
+            msg_acc[3*0 + 2] = static_cast<double>(st.imu_acc[0]);
+            msg_acc[3*1 + 2] = static_cast<double>(st.imu_acc[1]);
+            msg_acc[3*2 + 2] = static_cast<double>(st.imu_acc[2]);
+            
             if(Signal_Available_Check(msg_acc,0))
                 imu_acc->SensorDataHandle(msg_acc, UsedTimestamp);
         }
 
-        const double q[4] = {st.imu_quat[0],st.imu_quat[1],st.imu_quat[2],st.imu_quat[3]};
         double roll, pitch, yaw;
         double msg_rpy[9] = {0};
 
@@ -252,21 +270,20 @@ public:
         msg_rpy[3*1] = pitch;
         msg_rpy[3*2] = yaw + yaw_correct;
 
-        msg_rpy[3*0 + 1] = st.imu_gyro[0];
-        msg_rpy[3*1 + 1] = st.imu_gyro[1];
-        msg_rpy[3*2 + 1] = st.imu_gyro[2];
+        msg_rpy[3*0 + 1] = static_cast<double>(st.imu_gyro[0]);
+        msg_rpy[3*1 + 1] = static_cast<double>(st.imu_gyro[1]);
+        msg_rpy[3*2 + 1] = static_cast<double>(st.imu_gyro[2]);
 
         if(Signal_Available_Check(msg_rpy,1))
             imu_gyro->SensorDataHandle(msg_rpy, UsedTimestamp);
         
         if (legs_pos->JointsXYZEnable||legs_pos->JointsXYZVelocityEnable){
-            double joint[36];
+            double joint[48];
 
-            static const int desired_joints[] = {0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14};
-            for (int i = 0; i < 12; ++i) {
-                joint[0 + i]  = st.motor_q[desired_joints[i]];
-                joint[12 + i] = st.motor_dq[desired_joints[i]];
-                joint[24 + i] = st.motor_tau[desired_joints[i]];
+            for (int i = 0; i < 16; ++i) {
+                joint[0 + i]  = st.motor_q[i];
+                joint[16 + i] = st.motor_dq[i];
+                joint[32 + i] = st.motor_tau[i];
             }
 
             if (Signal_Available_Check(joint,2)||legs_pos->CalculateWeightEnable) {
@@ -286,28 +303,27 @@ public:
             }
         }
 
-        FE_Odometer odom;
-        odom.t = UsedTimestamp;
+        // ===== 位置/速度/加速度：来自 sensors[0] =====
+        odom.pos[0] = static_cast<float>(sensors[0]->EstimatedState[0]);
+        odom.pos[1] = static_cast<float>(sensors[0]->EstimatedState[3]);
+        odom.pos[2] = static_cast<float>(sensors[0]->EstimatedState[6]);
+        odom.vel[0] = static_cast<float>(sensors[0]->EstimatedState[1]);
+        odom.vel[1] = static_cast<float>(sensors[0]->EstimatedState[4]);
+        odom.vel[2] = static_cast<float>(sensors[0]->EstimatedState[7]);
+        odom.acc[0] = static_cast<float>(sensors[0]->EstimatedState[2]);
+        odom.acc[1] = static_cast<float>(sensors[0]->EstimatedState[5]);
+        odom.acc[2] = static_cast<float>(sensors[0]->EstimatedState[8]);
 
-        odom.pos[0] = sensors[0]->EstimatedState[0];
-        odom.pos[1] = sensors[0]->EstimatedState[3];
-        odom.pos[2] = sensors[0]->EstimatedState[6];
-        odom.vel[0] = sensors[0]->EstimatedState[1];
-        odom.vel[1] = sensors[0]->EstimatedState[4];
-        odom.vel[2] = sensors[0]->EstimatedState[7];
-        odom.acc[0] = sensors[0]->EstimatedState[2];
-        odom.acc[1] = sensors[0]->EstimatedState[5];
-        odom.acc[2] = sensors[0]->EstimatedState[8];
-
-        odom.rpy[0] = sensors[1]->EstimatedState[0];
-        odom.rpy[1] = sensors[1]->EstimatedState[3];
-        odom.rpy[2] = sensors[1]->EstimatedState[6];
-        odom.rpy_rate[0] = sensors[1]->EstimatedState[1];
-        odom.rpy_rate[1] = sensors[1]->EstimatedState[4];
-        odom.rpy_rate[2] = sensors[1]->EstimatedState[7];
-        odom.rpy_acc[0] = sensors[1]->EstimatedState[2];
-        odom.rpy_acc[1] = sensors[1]->EstimatedState[5];
-        odom.rpy_acc[2] = sensors[1]->EstimatedState[8];
+        // ===== 姿态角/角速度/角加速度：来自 sensors[1] =====
+        odom.rpy[0]  = static_cast<float>(sensors[1]->EstimatedState[0]);
+        odom.rpy[1] = static_cast<float>(sensors[1]->EstimatedState[3]);
+        odom.rpy[2]   = static_cast<float>(sensors[1]->EstimatedState[6]);
+        odom.rpy_rate[0]  = static_cast<float>(sensors[1]->EstimatedState[1]);
+        odom.rpy_rate[1] = static_cast<float>(sensors[1]->EstimatedState[4]);
+        odom.rpy_rate[2]   = static_cast<float>(sensors[1]->EstimatedState[7]);
+        odom.rpy_acc[0]  = static_cast<float>(legs_pos->FootfallPar[0]);
+        odom.rpy_acc[1] = static_cast<float>(legs_pos->FootfallPar[1]);
+        odom.rpy_acc[2]   = static_cast<float>(legs_pos->FootfallPar[2]);
         
         return odom;
     }
@@ -325,8 +341,8 @@ private:
 
     bool Signal_Available_Check(double Signal[], int type)
     {
-        static double last[3][36] = {0};
-        static int Number[3] = {9,9,36};
+        static double last[3][48] = {0};
+        static int Number[3] = {9,9,48};
         bool diff = false;
 
         for (int i = 0; i < Number[type]; ++i) {

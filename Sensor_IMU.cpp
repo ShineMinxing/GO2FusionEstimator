@@ -53,39 +53,10 @@ namespace DataFusion
         ObservationCorrect_AngularVelocity();
       }
         
-      OrientationCorrect();
+      angle_unwrap(Observation[0], Observation[3], Observation[6]);
 
       StateSpaceModel_Go2_EstimatorPort(Observation, ObservationTime, StateSpaceModel);
 
       UpdateEst_Quaternion();
     }
-
-    void SensorIMUMagGyro::OrientationCorrect(){
-
-      static int Est_OriRollTurningTimesRecord = 0, Est_OriYawTurningTimesRecord = 0, Est_OriPitchTurningTimesRecord = 0;
-      static double Est_OrientationRecord[3] = {0};
-
-      if (Est_OrientationRecord[0] > 0.9 * M_PI && Observation[0]< -0.9 * M_PI)
-        Est_OriRollTurningTimesRecord += 1;
-      if (Est_OrientationRecord[0] < -0.9 * M_PI && Observation[0]> 0.9 * M_PI)
-        Est_OriRollTurningTimesRecord -= 1;
-  
-      if (Est_OrientationRecord[1] > 0.9 * M_PI && Observation[3]< -0.9 * M_PI)
-        Est_OriPitchTurningTimesRecord += 1;
-      if (Est_OrientationRecord[1] < -0.9 * M_PI && Observation[3]> 0.9 * M_PI)
-        Est_OriPitchTurningTimesRecord -= 1;
-  
-      if (Est_OrientationRecord[2] > 0.9 * M_PI && Observation[6]< -0.9 * M_PI)
-        Est_OriYawTurningTimesRecord += 1;
-      if (Est_OrientationRecord[2] < -0.9 * M_PI && Observation[6] > 0.9 * M_PI)
-        Est_OriYawTurningTimesRecord -= 1;
-
-      Est_OrientationRecord[0] = Observation[0];
-      Est_OrientationRecord[1] = Observation[3];
-      Est_OrientationRecord[2] = Observation[6];
-  
-      Observation[0] = (Observation[0]+ Est_OriRollTurningTimesRecord * 2 * M_PI);
-      Observation[3] = (Observation[3]+ Est_OriPitchTurningTimesRecord * 2 * M_PI);
-      Observation[6] = (Observation[6]+ Est_OriYawTurningTimesRecord * 2 * M_PI);
-  }
 }

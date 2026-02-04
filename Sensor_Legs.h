@@ -23,6 +23,7 @@ namespace DataFusion
 
     double KinematicParams[4][13];
     double Par_HipLength = 0, Par_ThighLength = 0, Par_CalfLength = 0, Par_FootLength = 0;
+    double FootEffortThreshold = -80.0, Environement_Height_Scope = 0.08, Data_Fading_Time = 600.0;
 
     // ========= 预设：Go2点足 =========
     static constexpr double Go2P_PARAM[4][13] = {
@@ -35,28 +36,34 @@ namespace DataFusion
     static constexpr double Go2P_THIGH = 0.213;
     static constexpr double Go2P_CALF  = 0.213 + 0.022;
     static constexpr double Go2P_FOOT  = 0.00;
+    static constexpr double Go2P_Height= 0.08;
+    static constexpr double Go2P_FORCE = -1.0;
 
     void UseGo2P()
     {
       std::memcpy(KinematicParams, Go2P_PARAM, sizeof(KinematicParams));
       Par_HipLength = Go2P_HIP; Par_ThighLength = Go2P_THIGH; Par_CalfLength = Go2P_CALF; Par_FootLength = Go2P_FOOT;
+      Environement_Height_Scope = Go2P_Height;
+      FootEffortThreshold = Go2P_FORCE;
     }
 
     bool JointsXYZEnable = true;
-    bool JointsXYZVelocityEnable = false;
+    bool JointsXYZVelocityEnable = true;
 
     void SensorDataHandle(double* Message, double Time)  override;
+    void LoadedWeightCheck(double* Message, double Time);
 
-    double FootEffortThreshold = -1.0, Environement_Height_Scope = 0.08, Data_Fading_Time = 600.0;
     bool FootfallPositionRecordIsInitiated[4] = {0}, FootIsOnGround[4] = {0}, FootWasOnGround[4] = {0}, FootLastMotion[4] = {0}, FootLanding[4] = {0}, CalculateWeightEnable = false;
-    double LatestFeetEffort[4]={0};
-    double FootBodyPosition[4][3]={0}, FootfallPositionRecord[4][3]={0};
+    double LatestFootEffort[4][3]={0}, FeetEffort2BodyMotion[4][6], FeetVelocity2BodyMotion[4][6];
+    double FootBodyPos_BF[4][3]={0}, FootBodyPos_WF[4][3]={0}, FootBodyVel_WF[4][3]={0}, FootfallPositionRecord[4][3]={0}, FootfallPar[3] = {0}, WheelAnglePrev[4] = {0};
+    double LoadedWeight = 0, DogWeight = -400;
 
     protected:
 
     void Joint2HipFoot(double *Message, int LegNumber);
-    void PositionCorrect(int LegnNmber);
-
+    void FootFallPositionRecord(double *Message);
+    void FeetEffort2Body(int LegNumber);
+    void FeetVelocity2Body(double *Message, int LegNumber);
   };
 
   class SensorLegsOri : public Sensors

@@ -14,17 +14,16 @@ namespace DataFusion
       AngleCorrect[0] = 0 * M_PI / 180.0;
       AngleCorrect[1] = 1.7 * M_PI / 180.0;
       AngleCorrect[2] = 0 * M_PI / 180.0;
-
       eulerZYX_to_quat(AngleCorrect[0], AngleCorrect[1], AngleCorrect[2], SensorQuaternion);
       quat_normalize(SensorQuaternion);
       quat_conj(SensorQuaternion, SensorQuaternionInv);
 
-      SensorPosition[0] = -0.02557;
+      SensorPosition[0] = 0;
       SensorPosition[1] = 0;
-      SensorPosition[2] = 0.04232;
+      SensorPosition[2] = 0;
     }
 
-    bool IMUAccEnable = false;
+    bool IMUAccEnable = true;
 
     void SensorDataHandle(double* Message, double Time)  override;
 
@@ -42,21 +41,19 @@ namespace DataFusion
       AngleCorrect[0] = 0 * M_PI / 180.0;
       AngleCorrect[1] = 1.7 * M_PI / 180.0;
       AngleCorrect[2] = 0 * M_PI / 180.0;
-
       eulerZYX_to_quat(AngleCorrect[0], AngleCorrect[1], AngleCorrect[2], SensorQuaternion);
       quat_normalize(SensorQuaternion);
       quat_conj(SensorQuaternion, SensorQuaternionInv);
 
-      SensorPosition[0] = -0.02557;
+      SensorPosition[0] = 0;
       SensorPosition[1] = 0;
-      SensorPosition[2] = 0.04232;
+      SensorPosition[2] = 0;
     }
 
     bool IMUQuaternionEnable = true;
-    bool IMUGyroEnable = false;
+    bool IMUGyroEnable = true;
 
     void SensorDataHandle(double* Message, double Time) override;
-    void OrientationCorrect();
 
     protected:
 

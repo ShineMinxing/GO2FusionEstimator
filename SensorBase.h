@@ -57,6 +57,18 @@ namespace DataFusion
 
   };
 
+  static inline bool quat_is_ok(const double q[4])
+  {
+      // 1) not NaN/Inf
+      if (!std::isfinite(q[0]) || !std::isfinite(q[1]) ||
+          !std::isfinite(q[2]) || !std::isfinite(q[3]))
+          return false;
+
+      // 2) ||q||^2 ≈ 1
+      const double n2 = q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3];
+      return std::fabs(n2 - 1.0) < 1e-2;
+  }
+
   // q = [w,x,y,z], v = [x,y,z]
   static inline void quat_conj(const double q[4], double qc[4]) {
     qc[0] =  q[0]; qc[1] = -q[1]; qc[2] = -q[2]; qc[3] = -q[3];
@@ -186,4 +198,29 @@ namespace DataFusion
     while (a < -M_PI) a += 2.0 * M_PI;
     return a;
   }
+  
+  static inline void angle_unwrap1(double &a, double &last, int &turn)
+  {
+    if (last >  0.9*M_PI && a < -0.9*M_PI) turn += 1;
+    if (last < -0.9*M_PI && a >  0.9*M_PI) turn -= 1;
+    last = a;
+    a += turn * 2.0 * M_PI;
+  }
+
+  static inline void angle_unwrap(double &a)
+  {
+    static double last = 0.0;
+    static int    turn = 0;
+    angle_unwrap1(a, last, turn);
+  }
+
+  static inline void angle_unwrap(double &roll, double &pitch, double &yaw)
+  {
+    static double last_r=0.0, last_p=0.0, last_y=0.0;
+    static int    turn_r=0,   turn_p=0,   turn_y=0;
+    angle_unwrap1(roll,  last_r, turn_r);
+    angle_unwrap1(pitch, last_p, turn_p);
+    angle_unwrap1(yaw,   last_y, turn_y);
+  }
+
 }
