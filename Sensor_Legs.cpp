@@ -32,30 +32,27 @@ namespace DataFusion
             
             Joint2HipFoot(Message,LegNumber);
 
-            if(FootIsOnGround[LegNumber])
-            {
-                if(JointsXYZEnable){
-                    ObservationCorrect_Position();
+            if(JointsXYZEnable){
+                ObservationCorrect_Position();
 
-                    for(i = 0; i < 3; i++)
-                    {
-                        StateSpaceModel->Double_Par[0 + LegNumber * 3 + i] = Observation[3 * i]; 
-                        FootBodyPos_WF[LegNumber][i] = Observation[3 * i];
-                    }
+                for(i = 0; i < 3; i++)
+                {
+                    StateSpaceModel->Double_Par[0 + LegNumber * 3 + i] = Observation[3 * i]; 
+                    FootBodyPos_WF[LegNumber][i] = Observation[3 * i];
                 }
-
-                if(JointsXYZVelocityEnable){
-                    ObservationCorrect_Velocity();
-
-                    for(i = 0; i < 3; i++)
-                    {
-                        FootBodyVel_WF[LegNumber][i] = Observation[3 * i + 1];
-                    }
-                }
-
-                FeetEffort2Body(LegNumber);
-                FeetVelocity2Body(Message, LegNumber);
             }
+
+            if(JointsXYZVelocityEnable){
+                ObservationCorrect_Velocity();
+
+                for(i = 0; i < 3; i++)
+                {
+                    FootBodyVel_WF[LegNumber][i] = Observation[3 * i + 1];
+                }
+            }
+
+            FeetEffort2Body(LegNumber);
+            FeetVelocity2Body(Message, LegNumber);
 
             for(i = 0; i < 6; i++)
             {
@@ -88,12 +85,12 @@ namespace DataFusion
             StateSpaceModel_Go2_EstimatorPort(Observation, ObservationTime, StateSpaceModel);
 
             // 前脚中心 与 后脚中心
-            const double fx = 0.25 * (FootfallPositionRecord[0][0] + FootfallPositionRecord[1][0]);
-            const double fy = 0.25 * (FootfallPositionRecord[0][1] + FootfallPositionRecord[1][1]);
-            const double rx = 0.25 * (FootfallPositionRecord[2][0] + FootfallPositionRecord[3][0]);
-            const double ry = 0.25 * (FootfallPositionRecord[2][1] + FootfallPositionRecord[3][1]);
+            const double fx = 0.25 * (FootBodyPos_WF[0][0] + FootBodyPos_WF[1][0]);
+            const double fy = 0.25 * (FootBodyPos_WF[0][1] + FootBodyPos_WF[1][1]);
+            const double rx = 0.25 * (FootBodyPos_WF[2][0] + FootBodyPos_WF[3][0]);
+            const double ry = 0.25 * (FootBodyPos_WF[2][1] + FootBodyPos_WF[3][1]);
             
-            double x_mean = fx + rx, y_mean = fy + ry;
+            double x_mean = StateSpaceModel->EstimatedState[0] + fx + rx, y_mean = StateSpaceModel->EstimatedState[3] + fy + ry;
 
             double yaw_ff = std::atan2(fy - ry, fx - rx);
 
@@ -129,13 +126,13 @@ namespace DataFusion
         s23 = s2 * c3 + c2 * s3;
 
         Observation[0] = Par_CalfLength  * s23 + Par_ThighLength * s2;
-        Observation[3] = Par_HipLength * SideSign * c1 + Par_CalfLength * (s1 * c23) + Par_ThighLength * c2 * s1;
+        Observation[3] = Par_HipLength * SideSign * c1 + (Par_CalfLength + Par_FootLength) * (s1 * c23) + Par_ThighLength * c2 * s1;
         Observation[6] = Par_HipLength * SideSign * s1 - Par_CalfLength * (c1 * c23) - Par_ThighLength * c1 * c2 + Par_FootLength;
 
         Observation[1] = (Par_CalfLength *c23 + Par_ThighLength * c2)*dq2 + (Par_CalfLength *c23)*dq3;
-        Observation[4] = (Par_CalfLength *c1*c23 + Par_ThighLength * c1*c2 - Par_HipLength*SideSign*s1)*dq1\
-        + (-Par_CalfLength  * s1*s23 - Par_ThighLength * s1*s2)*dq2\
-        + (-Par_CalfLength  * s1*s23)*dq3;
+        Observation[4] = ((Par_CalfLength + Par_FootLength) *c1*c23 + Par_ThighLength * c1*c2 - Par_HipLength*SideSign*s1)*dq1\
+        + (-(Par_CalfLength + Par_FootLength)  * s1*s23 - Par_ThighLength * s1*s2)*dq2\
+        + (-(Par_CalfLength + Par_FootLength)  * s1*s23)*dq3;
         Observation[7] = (Par_CalfLength *s1*c23 + Par_ThighLength * c2*s1 + Par_HipLength*SideSign*c1)*dq1\
         + (Par_CalfLength *c1*s23 + Par_ThighLength * c1*s2)*dq2\
         + (Par_CalfLength *c1*s23)*dq3;
@@ -158,9 +155,9 @@ namespace DataFusion
         double Jx2_raw = Par_CalfLength * c23 + Par_ThighLength * c2;
         double Jx3_raw = Par_CalfLength * c23;
 
-        double Jy1 = Par_CalfLength * c1 * c23 + Par_ThighLength * c1 * c2 - Par_HipLength * SideSign * s1;
-        double Jy2 = -Par_CalfLength * s1 * s23 - Par_ThighLength * s1 * s2;
-        double Jy3 = -Par_CalfLength * s1 * s23;
+        double Jy1 = (Par_CalfLength + Par_FootLength) * c1 * c23 + Par_ThighLength * c1 * c2 - Par_HipLength * SideSign * s1;
+        double Jy2 = -(Par_CalfLength + Par_FootLength) * s1 * s23 - Par_ThighLength * s1 * s2;
+        double Jy3 = -(Par_CalfLength + Par_FootLength) * s1 * s23;
 
         double Jz1 = Par_CalfLength * s1 * c23 + Par_ThighLength * c2 * s1 + Par_HipLength * SideSign * c1;
         double Jz2 = Par_CalfLength * c1 * s23 + Par_ThighLength * c1 * s2;
@@ -362,8 +359,9 @@ namespace DataFusion
             // 小腿摆动角
             double ShankPitch = body_pitch + Message[LegNumber*4 + 1] + Message[LegNumber*4 + 2];
             double ShankRotationAngle = ShankPitch - ShankPitchPrev[LegNumber];
-            if (ShankRotationAngle >  M_PI) ShankRotationAngle -= 2.0*M_PI;
-            if (ShankRotationAngle < -M_PI) ShankRotationAngle += 2.0*M_PI;
+            while (WheelRotationAngle >  M_PI) WheelRotationAngle -= 2.0*M_PI;
+            while (WheelRotationAngle < -M_PI) WheelRotationAngle += 2.0*M_PI;
+
             ShankPitchPrev[LegNumber] = ShankPitch;
 
             // 轮子有效转动角
@@ -537,16 +535,55 @@ namespace DataFusion
 
                     if (LoadedWeight < 20.0) {
                         LoadedWeight = - DogWeight * 0.1;
-                        mean300 = DogWeight;
                     }
-
-                    FootEffortThreshold = mean300 * 0.2;
 
                     w_state  = 0;
                     
                     CalculateWeightEnable = false;
                 }
             }
+        }
+
+        static constexpr int WIN_T = 100;
+        static constexpr int STABLE_N = 300;
+
+        static double buf100[WIN_T] = {0.0};
+        static int    buf100_i = 0;
+        static int    buf100_n = 0;
+        static double sum100   = 0.0;
+
+        static int stable_cnt = 0; // 连续四足着地计数（饱和到 STABLE_N，避免溢出）
+
+        const bool all_on_ground =
+            FootIsOnGround[0] && FootIsOnGround[1] && FootIsOnGround[2] && FootIsOnGround[3];
+
+        if (all_on_ground) {
+            if (stable_cnt < STABLE_N) stable_cnt++;
+        } else {
+            stable_cnt = 0;
+            buf100_i = 0; buf100_n = 0; sum100 = 0.0; 
+        }
+
+        if (stable_cnt >= STABLE_N) {
+            const double fz_sum =
+                LatestFootEffort[0][2] + LatestFootEffort[1][2] +
+                LatestFootEffort[2][2] + LatestFootEffort[3][2];
+
+            if (buf100_n < WIN_T) {
+                buf100[buf100_i] = fz_sum;
+                sum100 += fz_sum;
+                buf100_n++;
+            } else {
+                sum100 -= buf100[buf100_i];
+                buf100[buf100_i] = fz_sum;
+                sum100 += fz_sum;
+            }
+            buf100_i++;
+            if (buf100_i >= WIN_T) buf100_i = 0;
+
+            const double mean100 = (buf100_n > 0) ? (sum100 / (double)buf100_n) : 0.0;
+
+            TimelyWeight = - mean100 * 0.1;
         }
     }
 

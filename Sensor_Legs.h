@@ -34,8 +34,8 @@ namespace DataFusion
     };
     static constexpr double Go2P_HIP   = 0.0955;
     static constexpr double Go2P_THIGH = 0.213;
-    static constexpr double Go2P_CALF  = 0.213 + 0.022;
-    static constexpr double Go2P_FOOT  = 0.00;
+    static constexpr double Go2P_CALF  = 0.213 + 0.022;   // 把点足的半径放在这里
+    static constexpr double Go2P_FOOT  = 0.00;            // 把轮子的半径长度放在这里
     static constexpr double Go2P_Height= 0.08;
     static constexpr double Go2P_FORCE = -1.0;
 
@@ -56,7 +56,7 @@ namespace DataFusion
     bool FootfallPositionRecordIsInitiated[4] = {0}, FootIsOnGround[4] = {0}, FootWasOnGround[4] = {0}, FootLastMotion[4] = {0}, FootLanding[4] = {0}, CalculateWeightEnable = false;
     double LatestFootEffort[4][3]={0}, FeetEffort2BodyMotion[4][6], FeetVelocity2BodyMotion[4][6];
     double FootBodyPos_BF[4][3]={0}, FootBodyPos_WF[4][3]={0}, FootBodyVel_WF[4][3]={0}, FootfallPositionRecord[4][3]={0}, FootfallPar[3] = {0}, WheelAnglePrev[4] = {0};
-    double LoadedWeight = 0, DogWeight = -400;
+    double LoadedWeight = 0, DogWeight = -400, TimelyWeight = 0;
 
     protected:
 
