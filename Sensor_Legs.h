@@ -46,6 +46,70 @@ namespace DataFusion
       Environement_Height_Scope = Go2P_Height;
       FootEffortThreshold = Go2P_FORCE;
     }
+    
+    // ========= 预设：中狗点足MP / 大狗轮足LW / 中狗轮足MW =========
+    static constexpr double MP_PARAM[4][13] = {
+      {  0.2878,  0.07,  0.000,   0.0,  0.1709,  0.0,   0.0,  0.0, -0.26,  0.0,  0.0, -0.26,  0.03 },
+      {  0.2878, -0.07,  0.000,   0.0, -0.1709,  0.0,   0.0,  0.0, -0.26,  0.0,  0.0, -0.26,  0.03 },
+      { -0.2878,  0.07,  0.000,   0.0,  0.1709,  0.0,   0.0,  0.0, -0.26,  0.0,  0.0, -0.26,  0.03 },
+      { -0.2878, -0.07,  0.000,   0.0, -0.1709,  0.0,   0.0,  0.0, -0.26,  0.0,  0.0, -0.26,  0.03 }
+    };
+    static constexpr double MP_HIP   = 0.1709;
+    static constexpr double MP_THIGH = 0.26;
+    static constexpr double MP_CALF  = 0.26 + 0.03;
+    static constexpr double MP_FOOT  = 0.00;
+    static constexpr double MP_Height= 0.08;
+    static constexpr double MP_FORCE = -80;
+
+    static constexpr double LW_PARAM[4][13] = {
+      {  0.3405,  0.1,  -0.0666,   0.0,  0.1522,  0.0,  0.0,  0.0, -0.27,  0.0,  0.0, -0.351,  0.195/2 },
+      {  0.3405, -0.1,  -0.0666,   0.0, -0.1522,  0.0,  0.0,  0.0, -0.27,  0.0,  0.0, -0.351,  0.195/2 },
+      { -0.3405,  0.1,  -0.0666,   0.0,  0.1522,  0.0,  0.0,  0.0, -0.27,  0.0,  0.0, -0.351,  0.195/2 },
+      { -0.3405, -0.1,  -0.0666,   0.0, -0.1522,  0.0,  0.0,  0.0, -0.27,  0.0,  0.0, -0.351,  0.195/2 }
+    };
+    static constexpr double LW_HIP   = 0.1522;
+    static constexpr double LW_THIGH = 0.27;
+    static constexpr double LW_CALF  = 0.351;
+    static constexpr double LW_FOOT  = 0.195/2;
+    static constexpr double LW_Height= 0.12;
+    static constexpr double LW_FORCE = -80;
+
+    static constexpr double MW_PARAM[4][13] = {
+      {  0.2878,  0.07,  0.000,   0.0,  0.1709,  0.0,   0.0,  0.0, -0.26,  0.0,  0.0, -0.26,  0.195/2 },
+      {  0.2878, -0.07,  0.000,   0.0, -0.1709,  0.0,   0.0,  0.0, -0.26,  0.0,  0.0, -0.26,  0.195/2 },
+      { -0.2878,  0.07,  0.000,   0.0,  0.1709,  0.0,   0.0,  0.0, -0.26,  0.0,  0.0, -0.26,  0.195/2 },
+      { -0.2878, -0.07,  0.000,   0.0, -0.1709,  0.0,   0.0,  0.0, -0.26,  0.0,  0.0, -0.26,  0.195/2 }
+    };
+    static constexpr double MW_HIP   = 0.1709;
+    static constexpr double MW_THIGH = 0.26;
+    static constexpr double MW_CALF  = 0.26;
+    static constexpr double MW_FOOT  = 0.195/2;
+    static constexpr double MW_Height= 0.03;
+    static constexpr double MW_FORCE = -110;
+
+    void UseMP()
+    {
+      std::memcpy(KinematicParams, MP_PARAM, sizeof(KinematicParams));
+      Par_HipLength = MP_HIP; Par_ThighLength = MP_THIGH; Par_CalfLength = MP_CALF; Par_FootLength = MP_FOOT;
+      Environement_Height_Scope = MP_Height;
+      FootEffortThreshold = MP_FORCE;
+    }
+
+    void UseLW()
+    {
+      std::memcpy(KinematicParams, LW_PARAM, sizeof(KinematicParams));
+      Par_HipLength = LW_HIP; Par_ThighLength = LW_THIGH; Par_CalfLength = LW_CALF; Par_FootLength = LW_FOOT;
+      Environement_Height_Scope = LW_Height;
+      FootEffortThreshold = LW_FORCE;
+    }
+    
+    void UseMW()
+    {
+      std::memcpy(KinematicParams, MW_PARAM, sizeof(KinematicParams));
+      Par_HipLength = MW_HIP; Par_ThighLength = MW_THIGH; Par_CalfLength = MW_CALF; Par_FootLength = MW_FOOT;
+      Environement_Height_Scope = MW_Height;
+      FootEffortThreshold = MW_FORCE;
+    }
 
     bool JointsXYZEnable = true;
     bool JointsXYZVelocityEnable = true;
